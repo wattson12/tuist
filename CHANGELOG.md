@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add support for templates in plugins [#2687](https://github.com/tuist/tuist/pull/2687) by [@luispadron](https://github.com/luispadron)
+
 ### Changed
 
 - Migrate mappers to ValueGraph [#2683](https://github.com/tuist/tuist/pull/2683) by [@fortmarek](https://github.com/fortmarek)

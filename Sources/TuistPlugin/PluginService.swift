@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistScaffold
 import TuistSupport
 
 /// A protocol defining a service for interacting with plugins.
@@ -16,21 +17,24 @@ public protocol PluginServicing {
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
 public final class PluginService: PluginServicing {
     private let manifestLoader: ManifestLoading
+    private let templateDirectoryLocator: TemplatesDirectoryLocating
     private let fileHandler: FileHandling
     private let gitHandler: GitHandling
 
     /// Creates a `PluginService`.
     /// - Parameters:
-    ///   - manifestLoader: A manifest loader for loading plugins.
-    ///   - configLoader: A configuration loader
+    ///   - manifestLoader: A manifest loader for loading plugin manifests.
+    ///   - templateDirectoryLocator: Locator for finding templates for plugins.
     ///   - fileHandler: A file handler for creating plugin directories/related files.
     ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
+        templateDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
         gitHandler: GitHandling = GitHandler()
     ) {
         self.manifestLoader = manifestLoader
+        self.templateDirectoryLocator = templateDirectoryLocator
         self.fileHandler = fileHandler
         self.gitHandler = gitHandler
     }
@@ -64,23 +68,23 @@ public final class PluginService: PluginServicing {
                 }
             }
         let remotePluginManifests = try remotePluginPaths.map(manifestLoader.loadPlugin)
+        let pluginPaths = localPluginPaths + remotePluginPaths
 
         let localProjectDescriptionHelperPlugins = zip(localPluginManifests, localPluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                let helpersPath = path.appending(component: Constants.helpersDirectoryName)
-                guard fileHandler.exists(helpersPath) else { return nil }
-                return ProjectDescriptionHelpersPlugin(name: plugin.name, path: helpersPath, location: .local)
+                projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .local)
             }
 
         let remoteProjectDescriptionHelperPlugins = zip(remotePluginManifests, remotePluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                let helpersPath = path.appending(component: Constants.helpersDirectoryName)
-                guard fileHandler.exists(helpersPath) else { return nil }
-                return ProjectDescriptionHelpersPlugin(name: plugin.name, path: helpersPath, location: .remote)
+                projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .remote)
             }
 
+        let templatePaths = try pluginPaths.flatMap(templatePaths(pluginPath:))
+
         return Plugins(
-            projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins
+            projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
+            templatePaths: templatePaths
         )
     }
 
@@ -101,5 +105,23 @@ public final class PluginService: PluginServicing {
         try gitHandler.checkout(id: gitId, in: pluginDirectory)
 
         return pluginDirectory
+    }
+
+    private func projectDescriptionHelpersPlugin(
+        name: String,
+        pluginPath: AbsolutePath,
+        location: ProjectDescriptionHelpersPlugin.Location
+    ) -> ProjectDescriptionHelpersPlugin? {
+        let helpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
+        guard fileHandler.exists(helpersPath) else { return nil }
+        return ProjectDescriptionHelpersPlugin(name: name, path: helpersPath, location: location)
+    }
+
+    private func templatePaths(
+        pluginPath: AbsolutePath
+    ) throws -> [AbsolutePath] {
+        let templatesPath = pluginPath.appending(component: Constants.templatesDirectoryName)
+        guard fileHandler.exists(templatesPath) else { return [] }
+        return try templateDirectoryLocator.templatePluginDirectories(at: templatesPath)
     }
 }

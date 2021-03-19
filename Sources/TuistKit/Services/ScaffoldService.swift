@@ -2,6 +2,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistPlugin
 import TuistScaffold
 import TuistSupport
 
@@ -20,7 +21,7 @@ enum ScaffoldServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .templateNotFound(template):
-            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
+            return "Could not find template \(template)."
         case let .nonEmptyDirectory(path):
             return "Can't generate a template in the non-empty directory at path \(path.pathString)."
         case let .attributeNotProvided(name):
@@ -29,30 +30,38 @@ enum ScaffoldServiceError: FatalError, Equatable {
     }
 }
 
-class ScaffoldService {
+final class ScaffoldService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
+    private let configLoader: ConfigLoading
+    private let pluginService: PluginServicing
 
-    init(templateLoader: TemplateLoading = TemplateLoader(),
-         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateGenerator: TemplateGenerating = TemplateGenerator())
-    {
+    init(
+        templateLoader: TemplateLoading = TemplateLoader(),
+        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        templateGenerator: TemplateGenerating = TemplateGenerator(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        pluginService: PluginServicing = PluginService()
+    ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
+        self.configLoader = configLoader
+        self.pluginService = pluginService
     }
 
-    func loadTemplateOptions(templateName: String,
-                             path: String?) throws -> (
+    func loadTemplateOptions(
+        templateName: String,
+        path: String?
+    ) throws -> (
         required: [String],
         optional: [String]
     ) {
         let path = self.path(path)
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
-
+        let templateDirectories = try locateTemplateDirectories(at: path)
         let templateDirectory = try self.templateDirectory(
-            templateDirectories: directories,
+            templateDirectories: templateDirectories,
             template: templateName
         )
 
@@ -74,8 +83,7 @@ class ScaffoldService {
              optionalTemplateOptions: [String: String?]) throws
     {
         let path = self.path(path)
-
-        let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let templateDirectories = try locateTemplateDirectories(at: path)
 
         let templateDirectory = try self.templateDirectory(
             templateDirectories: templateDirectories,
@@ -134,6 +142,17 @@ class ScaffoldService {
                 attributesDictionary[name] = option
             }
         }
+    }
+
+    /// Locates all template directories, local, system, and plugin.
+    /// - Parameter path: The path where the command is being executed.
+    /// - Returns: A list of template directories
+    private func locateTemplateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
+        let config = try configLoader.loadConfig(path: path)
+        let plugins = try pluginService.loadPlugins(using: config)
+        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let templatePluginDirectories = plugins.templateDirectories
+        return templateRelativeDirectories + templatePluginDirectories
     }
 
     /// Finds template directory

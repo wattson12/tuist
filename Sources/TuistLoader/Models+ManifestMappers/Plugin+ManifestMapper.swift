@@ -6,7 +6,10 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Plugin {
-    static func from(manifest: ProjectDescription.Plugin) throws -> Self {
+    static func from(
+        manifest: ProjectDescription.Plugin,
+        path _: AbsolutePath
+    ) throws -> Self {
         TuistGraph.Plugin(name: manifest.name)
     }
 }
