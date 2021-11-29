@@ -17,7 +17,7 @@ gem "cli-ui", "~> 1.4"
 gem "thor", "~> 1.1"
 gem "octokit", "~> 4.20"
 gem "zeitwerk", "~> 2.4"
-gem "cli-kit", "~> 3.3"
+gem "cli-kit", "~> 4.0"
 gem "semantic", "~> 1.6"
 
 group :test do
