@@ -21,7 +21,7 @@ gem "cli-kit", "~> 3.3"
 gem "semantic", "~> 1.6"
 
 group :test do
-  gem "mocha", "~> 1.12"
+  gem "mocha", "~> 1.13"
   gem "minitest"
   gem "minitest-reporters"
 end
